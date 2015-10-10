@@ -14,6 +14,8 @@
 #include "gamemodes/ctf.h"
 #include "gamemodes/mod.h"
 
+#include "bot.h"
+
 enum
 {
 	RESET,
@@ -37,6 +39,7 @@ void CGameContext::Construct(int Resetting)
 
 	if(Resetting==NO_RESET)
 		m_pVoteOptionHeap = new CHeap();
+	m_pBotEngine = new CBotEngine(this);
 }
 
 CGameContext::CGameContext(int Resetting)
@@ -55,6 +58,7 @@ CGameContext::~CGameContext()
 		delete m_apPlayers[i];
 	if(!m_Resetting)
 		delete m_pVoteOptionHeap;
+	delete m_pBotEngine;
 }
 
 void CGameContext::Clear()
@@ -392,7 +396,7 @@ void CGameContext::SwapTeams()
 {
 	if(!m_pController->IsTeamplay())
 		return;
-	
+
 	SendChat(-1, CGameContext::CHAT_ALL, "Teams were swapped");
 
 	for(int i = 0; i < MAX_CLIENTS; ++i)
@@ -408,6 +412,18 @@ void CGameContext::OnTick()
 {
 	// check tuning
 	CheckPureTuning();
+
+	// Check bot number
+	CheckBotNumber();
+
+	// Test basic move for bots
+	for(int i = 0; i < MAX_CLIENTS ; i++)
+	{
+		if(!m_apPlayers[i] || !m_apPlayers[i]->m_IsBot)
+			continue;
+		CNetObj_PlayerInput Input = m_apPlayers[i]->m_pBot->GetLastInputData();
+		m_apPlayers[i]->OnPredictedInput(&Input);
+	}
 
 	// copy tuning
 	m_World.m_Core.m_Tuning = m_Tuning;
@@ -447,7 +463,7 @@ void CGameContext::OnTick()
 				bool aVoteChecked[MAX_CLIENTS] = {0};
 				for(int i = 0; i < MAX_CLIENTS; i++)
 				{
-					if(!m_apPlayers[i] || m_apPlayers[i]->GetTeam() == TEAM_SPECTATORS || aVoteChecked[i])	// don't count in votes by spectators
+					if(!m_apPlayers[i] || m_apPlayers[i]->GetTeam() == TEAM_SPECTATORS || aVoteChecked[i] || m_apPlayers[i]->m_IsBot)	// don't count in votes by spectators
 						continue;
 
 					int ActVote = m_apPlayers[i]->m_Vote;
@@ -504,7 +520,14 @@ void CGameContext::OnTick()
 		}
 	}
 
-
+	// Test basic move for bots
+	for(int i = 0; i < MAX_CLIENTS ; i++)
+	{
+		if(!m_apPlayers[i] || !m_apPlayers[i]->m_IsBot)
+			continue;
+		CNetObj_PlayerInput Input = m_apPlayers[i]->m_pBot->GetInputData();
+		m_apPlayers[i]->OnDirectInput(&Input);
+	}
 #ifdef CONF_DEBUG
 	if(g_Config.m_DbgDummies)
 	{
@@ -547,6 +570,12 @@ void CGameContext::OnClientEnter(int ClientID)
 
 void CGameContext::OnClientConnected(int ClientID)
 {
+	//Check if the slot is used by a bot
+	if(m_apPlayers[ClientID] && m_apPlayers[ClientID]->m_IsBot)
+	{
+		delete m_apPlayers[ClientID];
+		m_apPlayers[ClientID] = 0;
+	}
 	// Check which team the player should be on
 	const int StartTeam = g_Config.m_SvTournamentMode ? TEAM_SPECTATORS : m_pController->GetAutoTeam(ClientID);
 
@@ -555,6 +584,8 @@ void CGameContext::OnClientConnected(int ClientID)
 	//players[client_id].client_id = client_id;
 
 	(void)m_pController->CheckTeamBalance();
+
+	CheckBotNumber();
 
 #ifdef CONF_DEBUG
 	if(g_Config.m_DbgDummies)
@@ -590,6 +621,8 @@ void CGameContext::OnClientDrop(int ClientID, const char *pReason)
 		if(m_apPlayers[i] && m_apPlayers[i]->m_SpectatorID == ClientID)
 			m_apPlayers[i]->m_SpectatorID = SPEC_FREEVIEW;
 	}
+
+	CheckBotNumber();
 }
 
 void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
@@ -617,7 +650,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 
 			CNetMsg_Cl_Say *pMsg = (CNetMsg_Cl_Say *)pRawMsg;
 			int Team = pMsg->m_Team ? pPlayer->GetTeam() : CGameContext::CHAT_ALL;
-			
+
 			// trim right and set maximum length to 128 utf8-characters
 			int Length = 0;
 			const char *p = pMsg->m_pMessage;
@@ -741,6 +774,11 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 					SendChatTarget(ClientID, "Invalid client id to kick");
 					return;
 				}
+				if(m_apPlayers[KickID]->m_IsBot)
+				{
+					SendChatTarget(ClientID, "You can't kick server bots");
+					return;
+				}
 				if(KickID == ClientID)
 				{
 					SendChatTarget(ClientID, "You can't kick yourself");
@@ -778,6 +816,11 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 				if(SpectateID < 0 || SpectateID >= MAX_CLIENTS || !m_apPlayers[SpectateID] || m_apPlayers[SpectateID]->GetTeam() == TEAM_SPECTATORS)
 				{
 					SendChatTarget(ClientID, "Invalid client id to move");
+					return;
+				}
+				if(m_apPlayers[SpectateID]->m_IsBot)
+				{
+					SendChatTarget(ClientID, "You can't move server bots");
 					return;
 				}
 				if(SpectateID == ClientID)
@@ -1150,7 +1193,7 @@ void CGameContext::ConShuffleTeams(IConsole::IResult *pResult, void *pUserData)
 		if(pSelf->m_apPlayers[i] && pSelf->m_apPlayers[i]->GetTeam() != TEAM_SPECTATORS)
 			++PlayerTeam;
 	PlayerTeam = (PlayerTeam+1)/2;
-	
+
 	pSelf->SendChat(-1, CGameContext::CHAT_ALL, "Teams were shuffled");
 
 	for(int i = 0; i < MAX_CLIENTS; ++i)
@@ -1162,7 +1205,7 @@ void CGameContext::ConShuffleTeams(IConsole::IResult *pResult, void *pUserData)
 			else if(CounterBlue == PlayerTeam)
 				pSelf->m_apPlayers[i]->SetTeam(TEAM_RED, false);
 			else
-			{	
+			{
 				if(rand() % 2)
 				{
 					pSelf->m_apPlayers[i]->SetTeam(TEAM_BLUE, false);
@@ -1506,6 +1549,8 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 	CMapItemLayerTilemap *pTileMap = m_Layers.GameLayer();
 	CTile *pTiles = (CTile *)Kernel()->RequestInterface<IMap>()->GetData(pTileMap->m_Data);
 
+	m_pBotEngine->Init(pTiles, pTileMap->m_Width, pTileMap->m_Height);
+
 
 
 
@@ -1540,6 +1585,8 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 		}
 	}
 #endif
+
+	CheckBotNumber();
 }
 
 void CGameContext::OnShutdown()
@@ -1565,6 +1612,13 @@ void CGameContext::OnSnap(int ClientID)
 	m_World.Snap(ClientID);
 	m_pController->Snap(ClientID);
 	m_Events.Snap(ClientID);
+
+	// Snap bot debug info
+	if(g_Config.m_SvBotEngineDrawGraph)
+		m_pBotEngine->Snap(ClientID);
+	for(int i = 0; i < MAX_CLIENTS; i++)
+		if(m_apPlayers[i] && m_apPlayers[i]->IsBot() && g_Config.m_SvBotDrawTarget)
+			m_apPlayers[i]->m_pBot->Snap(ClientID);
 
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -1593,3 +1647,49 @@ const char *CGameContext::Version() { return GAME_VERSION; }
 const char *CGameContext::NetVersion() { return GAME_NETVERSION; }
 
 IGameServer *CreateGameServer() { return new CGameContext; }
+
+void CGameContext::CheckBotNumber() {
+	int BotNumber = 0;
+	int PlayerCount = 0;
+	for(int i = 0 ; i < MAX_CLIENTS ; ++i) {
+		if(!m_apPlayers[i])
+			continue;
+		if(m_apPlayers[i]->m_IsBot)
+			BotNumber++;
+		else
+			PlayerCount++;
+	}
+	if(!PlayerCount)
+		BotNumber += g_Config.m_SvBotSlots;
+	// Remove bot excedent
+	if(BotNumber-g_Config.m_SvBotSlots > 0)	{
+		int FirstBot = 0;
+		for(int i = 0 ; i < BotNumber-g_Config.m_SvBotSlots ; i++) {
+			for(; FirstBot < MAX_CLIENTS ; FirstBot++)
+				if(m_apPlayers[FirstBot] && m_apPlayers[FirstBot]->m_IsBot)
+					break;
+			if(FirstBot < MAX_CLIENTS) {
+				delete m_apPlayers[FirstBot];
+				m_apPlayers[FirstBot] = 0;
+			}
+		}
+	}
+	// Add missing bot if possible
+	if(g_Config.m_SvBotSlots-BotNumber > 0) {
+		int LastFreeSlot = Server()->MaxClients()-1;
+		for(int i = 0 ; i < g_Config.m_SvBotSlots-BotNumber ; i++) {
+			for(; LastFreeSlot >= 0 ; LastFreeSlot--)
+				if(!m_apPlayers[LastFreeSlot])
+					break;
+			if( LastFreeSlot >= 0) {
+				dbg_msg("context","Add a bot at slot: %d", LastFreeSlot);
+				const int StartTeam = g_Config.m_SvTournamentMode ? TEAM_SPECTATORS : m_pController->GetAutoTeam(LastFreeSlot);
+				if(StartTeam == TEAM_SPECTATORS)
+					break;
+				m_apPlayers[LastFreeSlot] = new(LastFreeSlot) CPlayer(this, LastFreeSlot, StartTeam);
+				m_apPlayers[LastFreeSlot]->m_IsBot = true;
+				m_apPlayers[LastFreeSlot]->m_pBot = new CBot(m_pBotEngine, m_apPlayers[LastFreeSlot]);
+			}
+		}
+	}
+}

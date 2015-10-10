@@ -74,6 +74,12 @@ typedef vector2_base<bool> bvec2;
 typedef vector2_base<int> ivec2;
 
 template<typename T>
+inline T det(const vector2_base<T> &a, const vector2_base<T> &b)
+{
+	return a.x*b.y - a.y*b.x;
+}
+
+template<typename T>
 inline vector2_base<T> closest_point_on_line(vector2_base<T> line_point0, vector2_base<T> line_point1, vector2_base<T> target_point)
 {
 	vector2_base<T> c = target_point - line_point0;
