@@ -145,7 +145,7 @@ void CPlayer::Snap(int SnappingClient)
 		pClientInfo->m_Country = 0;
 		StrToInts(&pClientInfo->m_Skin0, 6, g_Config.m_SvBotSkin);
 		pClientInfo->m_UseCustomColor = 1;
-		pClientInfo->m_ColorBody = ((Server()->Tick()& 0xff) << 16) | 0xff00 ;
+		pClientInfo->m_ColorBody = m_TeeInfos.m_ColorBody;
 		pClientInfo->m_ColorFeet = m_TeeInfos.m_ColorFeet;
 	}
 
