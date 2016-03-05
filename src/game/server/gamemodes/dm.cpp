@@ -6,7 +6,7 @@
 CGameControllerDM::CGameControllerDM(class CGameContext *pGameServer)
 : IGameController(pGameServer)
 {
-	m_pGameType = "bDM";
+	m_pGameType = "BotDM";
 }
 
 void CGameControllerDM::Tick()
