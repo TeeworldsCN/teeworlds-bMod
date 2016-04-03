@@ -621,8 +621,6 @@ void CGameContext::OnClientDrop(int ClientID, const char *pReason)
 		if(m_apPlayers[i] && m_apPlayers[i]->m_SpectatorID == ClientID)
 			m_apPlayers[i]->m_SpectatorID = SPEC_FREEVIEW;
 	}
-
-	CheckBotNumber();
 }
 
 void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
@@ -1689,6 +1687,9 @@ void CGameContext::CheckBotNumber() {
 				m_apPlayers[LastFreeSlot] = new(LastFreeSlot) CPlayer(this, LastFreeSlot, StartTeam);
 				m_apPlayers[LastFreeSlot]->m_IsBot = true;
 				m_apPlayers[LastFreeSlot]->m_pBot = new CBot(m_pBotEngine, m_apPlayers[LastFreeSlot]);
+				Server()->NewBot(LastFreeSlot);
+				Server()->SetClientName(LastFreeSlot, g_aBotName[LastFreeSlot]);
+				Server()->SetClientClan(LastFreeSlot, g_BotClan);
 			}
 		}
 	}
