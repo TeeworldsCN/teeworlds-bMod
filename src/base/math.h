@@ -5,9 +5,6 @@
 
 #include <stdlib.h>
 
-// 0.7 compliant
-#define round_to_int(x) round(x)
-
 template <typename T>
 inline T clamp(T val, T min, T max)
 {
