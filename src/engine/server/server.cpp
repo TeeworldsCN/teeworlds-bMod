@@ -699,8 +699,26 @@ void CServer::DoSnapshot()
 
 int CServer::NewBot(int ClientID)
 {
+	if(m_aClients[ClientID].m_State > CClient::STATE_EMPTY )
+		return 1;
 	m_aClients[ClientID].m_State = CClient::STATE_INGAME;
 	m_aClients[ClientID].m_IsBot = true;
+	return 0;
+}
+
+int CServer::DelBot(int ClientID)
+{
+	if( !m_aClients[ClientID].m_IsBot )
+		return 1;
+	m_aClients[ClientID].m_State = CClient::STATE_EMPTY;
+	m_aClients[ClientID].m_aName[0] = 0;
+	m_aClients[ClientID].m_aClan[0] = 0;
+	m_aClients[ClientID].m_Country = -1;
+	m_aClients[ClientID].m_Authed = AUTHED_NO;
+	m_aClients[ClientID].m_AuthTries = 0;
+	m_aClients[ClientID].m_pRconCmdToSend = 0;
+	m_aClients[ClientID].m_IsBot = false;
+	m_aClients[ClientID].m_Snapshots.PurgeAll();
 	return 0;
 }
 
@@ -1105,7 +1123,7 @@ void CServer::SendServerInfo(const NETADDR *pAddr, int Token)
 	int PlayerCount = 0, ClientCount = 0;
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
-		if(m_aClients[i].m_State != CClient::STATE_EMPTY)
+		if(m_aClients[i].m_State != CClient::STATE_EMPTY && !m_aClients[i].m_IsBot)
 		{
 			if(GameServer()->IsClientPlayer(i))
 				PlayerCount++;
@@ -1141,7 +1159,7 @@ void CServer::SendServerInfo(const NETADDR *pAddr, int Token)
 
 	for(i = 0; i < MAX_CLIENTS; i++)
 	{
-		if(m_aClients[i].m_State != CClient::STATE_EMPTY)
+		if(m_aClients[i].m_State != CClient::STATE_EMPTY && !m_aClients[i].m_IsBot)
 		{
 			p.AddString(ClientName(i), MAX_NAME_LENGTH); // client name
 			p.AddString(ClientClan(i), MAX_CLAN_LENGTH); // client clan
