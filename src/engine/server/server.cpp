@@ -753,8 +753,13 @@ int CServer::DelClientCallback(int ClientID, const char *pReason, void *pUser)
 	pThis->Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "server", aBuf);
 
 	// notify the mod about the drop
-	if(pThis->m_aClients[ClientID].m_State >= CClient::STATE_READY)
-		pThis->GameServer()->OnClientDrop(ClientID, pReason);
+	if(pThis->m_aClients[ClientID].m_State >= CClient::STATE_READY)	{
+		pThis->m_aClients[ClientID].m_State = CClient::STATE_EMPTY;
+		if(!pThis->GameServer()->ReplacePlayerByBot(ClientID))
+			pThis->GameServer()->OnClientDrop(ClientID, pReason);
+		else
+			return 0;
+	}
 
 	pThis->m_aClients[ClientID].m_State = CClient::STATE_EMPTY;
 	pThis->m_aClients[ClientID].m_aName[0] = 0;
