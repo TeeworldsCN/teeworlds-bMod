@@ -1646,6 +1646,29 @@ const char *CGameContext::NetVersion() { return GAME_NETVERSION; }
 
 IGameServer *CreateGameServer() { return new CGameContext; }
 
+void CGameContext::DeleteBot(int i) {
+	Server()->DelBot(i);
+	if(m_apPlayers[i] && m_apPlayers[i]->m_IsBot) {
+		dbg_msg("context","Delete bot at slot: %d", i);
+		delete m_apPlayers[i];
+		m_apPlayers[i] = 0;
+	}
+}
+
+void CGameContext::AddBot(int i, bool UseDropPlayer) {
+	dbg_msg("context","Add a bot at slot: %d", i);
+	const int StartTeam = g_Config.m_SvTournamentMode ? TEAM_SPECTATORS : m_pController->GetAutoTeam(i);
+	if(StartTeam == TEAM_SPECTATORS)
+		return;
+	if(!UseDropPlayer || !m_apPlayers[i]) 
+		m_apPlayers[i] = new(i) CPlayer(this, i, StartTeam);
+	m_apPlayers[i]->m_IsBot = true;
+	m_apPlayers[i]->m_pBot = new CBot(m_pBotEngine, m_apPlayers[i]);
+	Server()->NewBot(i);
+	Server()->SetClientName(i, g_aBotName[i]);
+	Server()->SetClientClan(i, g_BotClan);
+}
+
 void CGameContext::CheckBotNumber() {
 	int BotNumber = 0;
 	int PlayerCount = 0;
@@ -1666,10 +1689,8 @@ void CGameContext::CheckBotNumber() {
 			for(; FirstBot < MAX_CLIENTS ; FirstBot++)
 				if(m_apPlayers[FirstBot] && m_apPlayers[FirstBot]->m_IsBot)
 					break;
-			if(FirstBot < MAX_CLIENTS) {
-				delete m_apPlayers[FirstBot];
-				m_apPlayers[FirstBot] = 0;
-			}
+			if(FirstBot < MAX_CLIENTS) 
+				DeleteBot(FirstBot);
 		}
 	}
 	// Add missing bot if possible
@@ -1679,18 +1700,8 @@ void CGameContext::CheckBotNumber() {
 			for(; LastFreeSlot >= 0 ; LastFreeSlot--)
 				if(!m_apPlayers[LastFreeSlot])
 					break;
-			if( LastFreeSlot >= 0) {
-				dbg_msg("context","Add a bot at slot: %d", LastFreeSlot);
-				const int StartTeam = g_Config.m_SvTournamentMode ? TEAM_SPECTATORS : m_pController->GetAutoTeam(LastFreeSlot);
-				if(StartTeam == TEAM_SPECTATORS)
-					break;
-				m_apPlayers[LastFreeSlot] = new(LastFreeSlot) CPlayer(this, LastFreeSlot, StartTeam);
-				m_apPlayers[LastFreeSlot]->m_IsBot = true;
-				m_apPlayers[LastFreeSlot]->m_pBot = new CBot(m_pBotEngine, m_apPlayers[LastFreeSlot]);
-				Server()->NewBot(LastFreeSlot);
-				Server()->SetClientName(LastFreeSlot, g_aBotName[LastFreeSlot]);
-				Server()->SetClientClan(LastFreeSlot, g_BotClan);
-			}
+			if( LastFreeSlot >= 0) 
+				AddBot(LastFreeSlot);
 		}
 	}
 }
