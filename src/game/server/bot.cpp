@@ -15,6 +15,8 @@
 #include "entities/flag.h"
 #include "entities/pickup.h"
 
+#include "ai/defence.h"
+
 CBot::CBot(CBotEngine *pBotEngine, CPlayer *pPlayer) : m_Genetics(CTarget::NUM_TARGETS,10)
 {
 	m_pBotEngine = pBotEngine;
@@ -31,10 +33,13 @@ CBot::CBot(CBotEngine *pBotEngine, CPlayer *pPlayer) : m_Genetics(CTarget::NUM_T
 	UpdateTargetOrder();
 
 	BotEngine()->RegisterBot(m_pPlayer->GetCID(), this);
+
+	m_pStrategyPosition = NULL;
 }
 
 CBot::~CBot()
 {
+	delete m_pStrategyPosition;
 	BotEngine()->UnRegisterBot(m_pPlayer->GetCID());
 	m_pPath->m_Size = 0;
 	GameServer()->Server()->SnapFreeID(m_SnapID);
@@ -193,10 +198,21 @@ void CBot::UpdateTarget()
 			case CTarget::TARGET_AIR:
 				{
 					// Random destination
-					int r = random_int()%BotEngine()->GetGraph()->m_NumVertices;
-					m_ComputeTarget.m_Pos = BotEngine()->GetGraph()->m_pVertices[r].m_Pos;
-					m_ComputeTarget.m_Type = CTarget::TARGET_AIR;
-					return;
+					int Count = 0;
+					for(int v = 0 ; v < BotEngine()->GetGraph()->m_NumVertices ; v++)
+						if(m_pStrategyPosition->IsInsideZone(BotEngine()->GetGraph()->m_pVertices[v].m_Pos))
+							Count++;
+					if(Count)
+					{
+						Count = random_int()%Count+1;
+						int v = 0;
+						for(; Count ; v++)
+							if(m_pStrategyPosition->IsInsideZone(BotEngine()->GetGraph()->m_pVertices[v].m_Pos))
+								Count--;
+						m_ComputeTarget.m_Pos = BotEngine()->GetGraph()->m_pVertices[--v].m_Pos;
+						m_ComputeTarget.m_Type = CTarget::TARGET_AIR;
+						return;
+					}
 				}
 			}
 		}
@@ -279,6 +295,13 @@ void CBot::Tick()
 {
 	if(!m_pPlayer->GetCharacter())
 		return;
+
+	if(m_pStrategyPosition == NULL)
+	{
+		m_pStrategyPosition = new CDefence(BotEngine());
+		m_pStrategyPosition->SetTeam(0);
+	}
+
 	const CCharacterCore *pMe = m_pPlayer->GetCharacter()->GetCore();
 
 	UpdateTarget();

@@ -257,6 +257,8 @@ public:
 	} m_aPaths[MAX_CLIENTS];
 
 	int GetWidth() { return m_Width; }
+	int GetHeight() { return m_Height; }
+
 	CGraph *GetGraph() { return &m_Graph; }
 	vec2 GetFlagStandPos(int Team) { return m_aFlagStandPos[Team&1]; }
 

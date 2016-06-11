@@ -7,6 +7,7 @@
 #include "botengine.h"
 
 #include "ai/genetics.h"
+#include "ai/strategy.h"
 
 const char g_BotClan[12] = "Love";
 const char g_aBotName[MAX_CLIENTS][16] = {
@@ -86,6 +87,8 @@ protected:
 
 	class CGenetics m_Genetics;
 	int m_aTargetOrder[CTarget::NUM_TARGETS];
+
+	CStrategyPosition* m_pStrategyPosition;
 
 	void UpdateTargetOrder();
 
