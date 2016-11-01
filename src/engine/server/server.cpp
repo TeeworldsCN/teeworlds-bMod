@@ -555,7 +555,7 @@ int CServer::SendMsgEx(CMsgPacker *pMsg, int Flags, int ClientID, bool System)
 					m_NetServer.Send(&Packet);
 				}
 		}
-		else
+		else if(!m_aClients[ClientID].m_IsBot)
 			m_NetServer.Send(&Packet);
 	}
 	return 0;
@@ -583,11 +583,11 @@ void CServer::DoSnapshot()
 	// create snapshots for all clients
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
-		// client must be ingame to recive snapshots
+		// client must be ingame to receive snapshots
 		if(m_aClients[i].m_State != CClient::STATE_INGAME)
 			continue;
 
-		// client must be human to recive snapshots
+		// client must be human to receive snapshots
 		if(m_aClients[i].m_IsBot)
 			continue;
 
