@@ -29,6 +29,7 @@ protected:
   CBotEngine* BotEngine() { return m_pBotEngine; }
 public:
 	CStrategyPosition(CBotEngine* pBotEngine);
+  virtual ~CStrategyPosition() {}
 
   bool AttackPlayer(const CCharacter *pBot, const CCharacter *pEnemy);
   bool FollowPlayer(const CCharacter *pBot, const CCharacter *pEnemy);

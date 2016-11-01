@@ -9,7 +9,7 @@ CDefence::CDefence(CBotEngine* pBotEngine) : CStrategyPosition(pBotEngine)
 	int Size = pGraph->GetPath(Flag0,Flag1,pVertices);
 	if(Size > 3)
 	{
-		int a0 = 0, a1 = Size/4, a2 = Size/2, a3 = 3*Size / 4, a4 = Size-1;
+		int a0 = 0, a1 = Size/4, a3 = 3*Size / 4, a4 = Size-1;
 		m_aZones[0].m_Center = pVertices[a0];
 		m_aZones[0].m_Range = distance(pVertices[a0],pVertices[a1]);
 		m_aZones[1].m_Center = pVertices[a4];
