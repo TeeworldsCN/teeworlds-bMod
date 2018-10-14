@@ -270,6 +270,16 @@ void CServer::CClient::Reset()
 	m_Score = 0;
 }
 
+bool CServer::CClient::CRCheck()
+{
+	if(m_CRSuccess || (m_CRCounter == m_CRCheckVal))
+	{
+		m_CRSuccess = true;
+		return true;
+	}
+	return false;
+}
+
 CServer::CServer() : m_DemoRecorder(&m_SnapshotDelta)
 {
 	m_TickSpeed = SERVER_TICK_SPEED;
@@ -652,10 +662,10 @@ void CServer::DoSnapshot()
 				const int MaxSize = MAX_SNAPSHOT_PACKSIZE;
 				int NumPackets;
 
-				SnapshotSize = CVariableInt::Compress(aDeltaData, DeltaSize, aCompData);
+				SnapshotSize = CVariableInt::Compress(aDeltaData, DeltaSize, aCompData, sizeof(aCompData));
 				NumPackets = (SnapshotSize+MaxSize-1)/MaxSize;
 
-				for(int n = 0, Left = SnapshotSize; Left; n++)
+				for(int n = 0, Left = SnapshotSize; Left > 0; n++)
 				{
 					int Chunk = Left < MaxSize ? Left : MaxSize;
 					Left -= Chunk;
@@ -731,6 +741,10 @@ int CServer::NewClientCallback(int ClientID, void *pUser)
 		pThis->GameServer()->DeleteBot(ClientID);
 
 	pThis->m_aClients[ClientID].m_State = CClient::STATE_AUTH;
+	pThis->m_aClients[ClientID].m_CRCounter = 0;
+	pThis->m_aClients[ClientID].m_CRCheckVal = rand()%CClient::CR_MAXVAL;
+	pThis->m_aClients[ClientID].m_CRSuccess = false;
+	pThis->m_aClients[ClientID].m_ConStartTime = time_get();
 	pThis->m_aClients[ClientID].m_aName[0] = 0;
 	pThis->m_aClients[ClientID].m_aClan[0] = 0;
 	pThis->m_aClients[ClientID].m_Country = -1;
@@ -844,6 +858,17 @@ void CServer::UpdateClientRconCommands()
 	}
 }
 
+void CServer::CRAuthentification(int ClientID)
+{
+	if((g_Config.m_SvCRFailBantime >= 0) && (!m_aClients[ClientID].CRCheck()))
+	{
+		if(g_Config.m_SvCRFailBantime == 0)
+			m_NetServer.Drop(ClientID, "Failed challenge response");
+		else
+			m_ServerBan.BanAddr(m_NetServer.ClientAddr(ClientID), g_Config.m_SvCRFailBantime * 60, "Failed challenge response");
+	}
+}
+
 void CServer::ProcessClientPacket(CNetChunk *pPacket)
 {
 	int ClientID = pPacket->m_ClientID;
@@ -884,6 +909,14 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 				}
 
 				m_aClients[ClientID].m_State = CClient::STATE_CONNECTING;
+
+				// send challenge response (via ping requests)
+				for (int i = 0; i < m_aClients[ClientID].m_CRCheckVal; ++i)
+				{
+					CMsgPacker CRMsg(NETMSG_PING);
+					SendMsgEx(&CRMsg, 0, ClientID, true);
+				}
+
 				SendMap(ClientID);
 			}
 		}
@@ -891,6 +924,9 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 		{
 			if((pPacket->m_Flags&NET_CHUNKFLAG_VITAL) == 0 || m_aClients[ClientID].m_State < CClient::STATE_CONNECTING)
 				return;
+
+			// check challenge response
+			CRAuthentification(ClientID);
 
 			int Chunk = Unpacker.GetInt();
 			unsigned int ChunkSize = 1024-128;
@@ -928,6 +964,9 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 		{
 			if((pPacket->m_Flags&NET_CHUNKFLAG_VITAL) != 0 && m_aClients[ClientID].m_State == CClient::STATE_CONNECTING)
 			{
+				// check challenge response
+				CRAuthentification(ClientID);
+
 				char aAddrStr[NETADDR_MAXSTRSIZE];
 				net_addr_str(m_NetServer.ClientAddr(ClientID), aAddrStr, sizeof(aAddrStr), true);
 
@@ -1092,6 +1131,10 @@ void CServer::ProcessClientPacket(CNetChunk *pPacket)
 			CMsgPacker Msg(NETMSG_PING_REPLY);
 			SendMsgEx(&Msg, 0, ClientID, true);
 		}
+		else if(Msg == NETMSG_PING_REPLY)
+		{
+			m_aClients[ClientID].m_CRCounter++;
+		}
 		else
 		{
 			if(g_Config.m_Debug)
@@ -1219,6 +1262,22 @@ void CServer::PumpNetwork()
 		}
 		else
 			ProcessClientPacket(&Packet);
+	}
+
+	// check for blocked connecting clients
+	if(g_Config.m_SvCRResponseTime > 0)
+	{
+		int64 Time = time_get();
+		for(int i = 0; i < MAX_CLIENTS; ++i)
+		{
+			if(!m_aClients[i].m_CRSuccess && (m_aClients[i].m_State == CClient::STATE_AUTH || m_aClients[i].m_State == CClient::STATE_CONNECTING) && (Time - m_aClients[i].m_ConStartTime >= time_freq() * g_Config.m_SvCRResponseTime))
+			{
+				if(g_Config.m_SvCRFailBantime == 0)
+					m_NetServer.Drop(i, "Failed challenge response (no response in time)");
+				else if(g_Config.m_SvCRFailBantime > 0)
+					m_ServerBan.BanAddr(m_NetServer.ClientAddr(i), g_Config.m_SvCRFailBantime * 60, "Failed challenge response (no response in time)");
+			}
+		}
 	}
 
 	m_ServerBan.Update();

@@ -92,7 +92,9 @@ public:
 
 			SNAPRATE_INIT=0,
 			SNAPRATE_FULL,
-			SNAPRATE_RECOVER
+			SNAPRATE_RECOVER,
+
+			CR_MAXVAL=128,
 		};
 
 		class CInput
@@ -104,6 +106,10 @@ public:
 
 		// connection state info
 		int m_State;
+		int m_CRCounter;
+		int m_CRCheckVal;
+		int m_CRSuccess;
+		int64 m_ConStartTime;
 		int m_Latency;
 		int m_SnapRate;
 
@@ -127,6 +133,7 @@ public:
 		const IConsole::CCommandInfo *m_pRconCmdToSend;
 
 		void Reset();
+		bool CRCheck();
 	};
 
 	CClient m_aClients[MAX_CLIENTS];
@@ -209,6 +216,7 @@ public:
 	void SendRconCmdAdd(const IConsole::CCommandInfo *pCommandInfo, int ClientID);
 	void SendRconCmdRem(const IConsole::CCommandInfo *pCommandInfo, int ClientID);
 	void UpdateClientRconCommands();
+	void CRAuthentification(int ClientID);
 
 	void ProcessClientPacket(CNetChunk *pPacket);
 
