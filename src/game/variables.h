@@ -93,6 +93,7 @@ MACRO_CONFIG_INT(SvBotAllowMove, sv_bot_allow_move, 1, 0, 1, CFGFLAG_SERVER, "Bo
 MACRO_CONFIG_INT(SvBotAllowFire, sv_bot_allow_fire, 1, 0, 1, CFGFLAG_SERVER, "Bots fire")
 MACRO_CONFIG_INT(SvBotDrawTarget, sv_bot_draw_target, 0, 0, 1, CFGFLAG_SERVER, "Show bot target")
 MACRO_CONFIG_INT(SvBotEngineDrawGraph, sv_botengine_draw_graph, 0, 0, 1, CFGFLAG_SERVER, "Draw graph")
+MACRO_CONFIG_INT(SvBotLaserAccuracy, sv_bot_laser_accuracy, 100, 1, 100, CFGFLAG_SERVER, "How large the chance that bot will fire when player entered bot fire coverage in laser instagib")
 
 // debug
 #ifdef CONF_DEBUG // this one can crash the server if not used correctly

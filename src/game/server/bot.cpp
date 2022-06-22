@@ -507,7 +507,8 @@ void CBot::HandleWeapon(bool SeeTarget)
 		}
 		else if(pMe->GetAmmoCount(WEAPON_RIFLE) != 0 && ClosestRange < GameServer()->Tuning()->m_LaserReach && !Collision()->FastIntersectLine(Pos, apTarget[c]->m_Pos, 0, 0))
 		{
-			Weapon = WEAPON_RIFLE;
+			if(g_Config.m_SvInstagibMode == 1 && random_int()%100 < g_Config.m_SvBotLaserAccuracy)
+				Weapon = WEAPON_RIFLE;
 			break;
 		}
 	}
