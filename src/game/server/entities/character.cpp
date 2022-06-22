@@ -707,8 +707,13 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 		return false;
 
 	// m_pPlayer only inflicts half damage on self
-	if(From == m_pPlayer->GetCID() && !g_Config.m_SvInstagibMode)
-		Dmg = max(1, Dmg/2);
+	if(From == m_pPlayer->GetCID())
+	{
+		if(g_Config.m_SvInstagibMode) // not take damage on self when in instagib
+			Dmg = 0;
+		else
+			Dmg = max(1, Dmg/2);
+	}
 
 	m_DamageTaken++;
 
