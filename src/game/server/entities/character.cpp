@@ -57,8 +57,15 @@ bool CCharacter::Spawn(CPlayer *pPlayer, vec2 Pos)
 	m_EmoteStop = -1;
 	m_LastAction = -1;
 	m_LastNoAmmoSound = -1;
-	m_ActiveWeapon = WEAPON_GUN;
-	m_LastWeapon = WEAPON_HAMMER;
+	if(g_Config.m_SvInstagibMode == 1)
+		m_ActiveWeapon = WEAPON_RIFLE;
+	else if(g_Config.m_SvInstagibMode == 2)
+		m_ActiveWeapon = WEAPON_GRENADE;
+	else
+	{
+		m_ActiveWeapon = WEAPON_GUN;
+		m_LastWeapon = WEAPON_HAMMER;
+	}
 	m_QueuedWeapon = -1;
 
 	m_pPlayer = pPlayer;
@@ -700,7 +707,7 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 		return false;
 
 	// m_pPlayer only inflicts half damage on self
-	if(From == m_pPlayer->GetCID())
+	if(From == m_pPlayer->GetCID() && !g_Config.m_SvInstagibMode)
 		Dmg = max(1, Dmg/2);
 
 	m_DamageTaken++;
@@ -719,27 +726,31 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 
 	if(Dmg)
 	{
-		if(m_Armor)
+		if(g_Config.m_SvInstagibMode)
+			m_Health = 0;
+		else
 		{
-			if(Dmg > 1)
+			if(m_Armor)
 			{
-				m_Health--;
-				Dmg--;
-			}
+				if(Dmg > 1)
+				{
+					m_Health--;
+					Dmg--;
+				}
 
-			if(Dmg > m_Armor)
-			{
-				Dmg -= m_Armor;
-				m_Armor = 0;
+				if(Dmg > m_Armor)
+				{
+					Dmg -= m_Armor;
+					m_Armor = 0;
+				}
+				else
+				{
+					m_Armor -= Dmg;
+					Dmg = 0;
+				}
 			}
-			else
-			{
-				m_Armor -= Dmg;
-				Dmg = 0;
-			}
+			m_Health -= Dmg;
 		}
-
-		m_Health -= Dmg;
 	}
 
 	m_DamageTakenTick = Server()->Tick();
